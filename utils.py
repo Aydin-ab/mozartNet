@@ -2,6 +2,8 @@
 import music21 as mu
 from contextlib import redirect_stdout
 import torch
+import os
+from tqdm import tqdm
 
 
 
@@ -94,7 +96,7 @@ def stream_to_sequence(stream) :
                 if isinstance(element, mu.note.Note):
                     pitch = element.pitch.midi # MIDI number of the pitch (12-127). 
                                                 # Starts at 12 bcs music21 consider <12 to be nearly never existent
-                    duration = element.duration.quarterLength # Duration in quarter length unit
+                    duration = float(element.duration.quarterLength) # Duration in quarter length unit. Cast to float bcs might be a fraction.Fraction
                     note = [pitch, duration]
                     chord.append(note)
 
@@ -104,9 +106,9 @@ def stream_to_sequence(stream) :
 
                 # Chord
                 elif isinstance(element, mu.chord.Chord):
-                    for n in element.notes :
+                    for n in element.notes[:5] :
                         pitch = n.pitch.midi
-                        duration = n.duration.quarterLength
+                        duration = float(n.duration.quarterLength) 
                         note = [pitch, duration]
                         chord.append(note)
                 
@@ -170,8 +172,8 @@ def sequence_to_batch(sequence, length= 32) :
 
     Output
     ----------
-    inputs : list of the consecutive inputs
-    targets : list of the corresponding target image of the inputs
+    inputs : tensor of the consecutive inputs. Shape Nxlengthx2x5x2
+    targets : tensor of the corresponding target image of the inputs. Shape Nx2x5x2
     """
     
     inputs = []
@@ -184,7 +186,7 @@ def sequence_to_batch(sequence, length= 32) :
     inputs.append(torch.stack(window))
     for image in sequence :
         # At iteration T
-        targets.append(torch.tensor(image)) #We append here the target n°T-1
+        targets.append(image) #We append here the target n°T-1
         window.pop(0)
         window.append(image)
         inputs.append(torch.stack(window)) # We append here the input n°T
@@ -201,13 +203,13 @@ def sequence_to_batch(sequence, length= 32) :
     # etc
     # Here window is currently of the form (IN-length+1, ..., IN), let's add his target 0
     for _ in range(length-1) :
-        targets.append(torch.tensor(NULL_IMAGE))
+        targets.append(NULL_IMAGE)
         window.pop(0)
         window.append(NULL_IMAGE)
         inputs.append(torch.stack(window))
     
     # We add the last target of the last window
-    targets.append(torch.tensor(NULL_IMAGE))
+    targets.append(NULL_IMAGE)
 
 
     # Now we need to clean the trailing null input-target at the end 
@@ -227,12 +229,25 @@ def sequence_to_batch(sequence, length= 32) :
 
 
 def main() :
-    #midi_filename = 'DATASET/all/balakir/islamei.mid'
-    midi_filename = 'DATASET/mozart_midi/mz_311_1.mid'
-    midi_stream = read_midi(midi_filename, show_log= True)
-    images = stream_to_sequence(midi_stream)
-    inputs, targets = sequence_to_batch(images)
+    #midi_filename = 'DATASET/all/mendel_op19_2.mid'
+    #midi_filename = 'DATASET/mozart_midi/mz_311_1.mid'
 
+
+    
+    dataset_path = 'DATASET/all/'
+
+    X, y = [], []
+    for midi in tqdm( os.listdir(dataset_path) ):
+        midi_path = os.path.join(dataset_path, midi)
+        print(f'Processing File : {midi_path}')
+        midi_stream = read_midi(midi_path, show_log= True)
+        images = stream_to_sequence(midi_stream)
+        inputs, targets = sequence_to_batch(images)
+        X.append(inputs)
+        y.append(targets)
+    X, y = torch.cat(X), torch.cat(y)
+    torch.save(X, 'DATASET/X.t')
+    torch.save(y, 'DATASET/y.t')
 
     # Need to tokenize the chords
     # Convert each unique chord as a unique token 0, 1, 2 etc

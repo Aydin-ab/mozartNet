@@ -1,12 +1,13 @@
 # DS_Store
 *.DS_Store
 
-# Log
+# Log and trash
 *.log
 
 # Large file
 **/X.t
 **/y.t
+trash.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

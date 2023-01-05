@@ -4,6 +4,10 @@
 # Log
 *.log
 
+# Large file
+**/X.t
+**/y.t
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
